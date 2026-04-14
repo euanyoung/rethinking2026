@@ -1,7 +1,7 @@
 # rethinking2026
 A resurgence in my efforts towards *Statistical Rethinking*
 
-For this I am using the 2nd edition of McElreath (2020), supplemented by his 2026 course (https://github.com/rmcelreath/stat_rethinking_2026/tree/main) and becuase I love brms AS Kurtz's love letter to Statistical Rethinking, brms, and tidyverse (https://bookdown.org/ajkurz/Statistical_Rethinking_recoded/index.html).
+For this I am using the 2nd edition of McElreath (2020), supplemented by his 2026 course (https://github.com/rmcelreath/stat_rethinking_2026/tree/main) and - becuase I love brms - AS Kurtz's love letter to Statistical Rethinking, brms, and tidyverse (https://bookdown.org/ajkurz/Statistical_Rethinking_recoded/index.html).
 
 I hope to be accurate and work out the correct solutions to many of the exercises and homeworks but I would encourage people to refer to RM's own solutions.
 
