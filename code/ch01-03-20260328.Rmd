@@ -1,0 +1,942 @@
+---
+title: "Chapters 1-3"
+author: "Euan Angus Young"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+
+# install.packages(c("coda","mvtnorm","devtools","loo","dagitty","shape"))
+# devtools::install_github("rmcelreath/rethinking")
+library(rethinking)
+
+```
+
+# Chapter 2
+
+## 1. Introduction
+
+We make models (Christopher Columbus' small world) that we hope represent the real world (the large world, reality).
+
+**START QUOTE**
+The small world is the self-contained logical world of the model. Within the small world, 
+all possibilities are nominated. There are no pure surprises, like the existence of a huge 
+continent between Europe and Asia. Within the small world of the model, it is important to
+be able to verify the model’s logic, making sure that it performs as expected under favorable
+assumptions. Bayesian models have some advantages in this regard, as they have reasonable
+claims to optimality: No alternative model could make better use of the information in the
+data and support better decisions, assuming the small world is an accurate description of the
+real world.
+The large world is the broader context in which one deploys a model. In the large
+world, there may be events that were not imagined in the small world. Moreover, the model
+is always an incomplete representation of the large world, and so will make mistakes, even
+if all kinds of events have been properly nominated. The logical consistency of a model in
+the small world is no guarantee that it will be optimal in the large world. But it is certainly a
+warm comfort.
+In this chapter, you will begin to build Bayesian models. The way that Bayesian models
+learn from evidence is arguably optimal in the small world. When their assumptions approximate reality, 
+they also perform well in the large world. But large world performance has to
+be demonstrated rather than logically deduced. Passing back and forth between these two
+worlds allows both formal methods, like Bayesian inference, and informal methods, like peer
+review, to play an indispensable role.
+**END QUOTE**
+
+## 2. The garden of forking data
+
+**START QUOTE**
+...Bayesian inference is really just counting and comparing of possibilities...
+...he book within Borges’ story explores all
+paths, with each decision branching outward into an expanding garden of forking paths.
+This is the same device that Bayesian inference offers. In order to make good inference
+about what actually happened, it helps to consider everything that could have happened.
+A Bayesian analysis is a garden of forking data, in which alternative sequences of events
+are cultivated. As we learn about what did happen, some of these alternative sequences are
+pruned. In the end, what remains is only what is logically consistent with our knowledge.
+This approach provides a quantitative ranking of hypotheses, a ranking that is maximally
+conservative, given the assumptions and data that go into it. The approach cannot guarantee
+a correct answer, on large world terms. But it can guarantee the best possible answer, on
+small world terms, that could be derived from the information fed into it.
+**END QUOTE**
+
+### A note on flat priors 
+
+**START QUOTE**
+Rethinking: Original ignorance. Which assumption should we use, when there is no previous infor- mation about the conjectures? The most common solution is to assign an equal number ofways that each conjecture could be correct, before seeing any data. This is sometimes known as the principle of indifference: When there is no reason to say that one conjecture ismore plausible than another, weigh all of the conjectures equally. This book does not use nor endorse “ignorance” priors. As we’ll see in later chapters, the structure of the model and the scientific context always provide information that allows us to do better than ignorance. For the sort of problems we examine in this book, the principle of indifference results in infer-
+ences verycomparable tomainstreamnon-Bayesian approaches,most ofwhich contain implicit equal weighting of possibilities. For example a typical non-Bayesian confidence interval weighs equally all of the possible values a parameter could take, regardless of how implausible some of them are. In addition, many non-Bayesian procedures have moved away from equal weighting, through the use of penalized likelihood and other methods. We’ll discuss this in Chapter 7.
+**END QUOTE**
+
+### why we use probabilities and not counts
+
+**START QUOTE**
+It is helpful to think of this strategy as adhering to a principle of honest ignorance: When we don’t know what caused the data, potential causes that may produce the data in more ways are more plausible. This leads us to count paths through the garden of forking data. We’re counting the implications of assumptions. 
+It’s hard to use these counts though, so we almost always standardize them in a way that
+transforms them into probabilities. Why is it hard to work with the counts? First, since relative value is all that matters, the size of the counts 3, 8, and 9 contain no information of value. They could just as easily be 30, 80, and 90. The meaning would be the same. It’s just the relative values that matter. Second, as the amount of data grows, the counts will very quickly grow very large and become difficult to manipulate. By the time we have 10 data points, there are already more than one million possible sequences. We’ll want to analyze data sets with thousands ofobservations, so explicitly counting these things isn’t practical.
+**END QUOTE**
+
+Finally, we construct probabilities by standardizing the plausibility so that the sum of
+the plausibilities for all possible conjectures will be one. All you need to do in order to standardize is to add up all of the products, one for each value p can take, and then divide each product by the sum of products:
+
+plausibility of p after Dnew = (ways p can produce Dnew × prior plausibility p)/ sum ofproducts
+
+These plausibilities are also probabilities—they are non-negative (zero or positive) real
+numbers that sum to one. And all of the mathematical things you can do with probabilities you can also do with these values. Specifically, each piece of the calculation has a direct partner in applied probability theory. These partners have stereotyped names, so it’s worth learning them, as you’ll see them again and again. 
+• A conjectured proportion of blue marbles, p, is usually called a **parameter value**. It’s just a way of indexing possible explanations of the data.
+• The relative number of ways that a value p can produce the data is usually called a **likelihood**. It is derived by enumerating all the possible data sequences that could have happened and then eliminating those sequences inconsistent with the data.
+• The prior plausibility of any specific p is usually called the **prior probability**. 
+• The new, updated plausibility of any specific p is usually called the **posterior probability**.
+
+## 2.2 Building a model
+
+Question: how much of the earth's surface is water?
+
+To get the logicmoving, we need tomake assumptions, and these assumptions constitute
+the model. Designing a simple Bayesian model benefits from a design loop with three steps. 
+(1) Data story: Motivate the model by narrating how the data might arise. 
+(2) Update: Educate your model by feeding it the data. 
+(3) Evaluate: All statistical models require supervision, leading to model revision
+
+#### Data story
+You canmotivate your data story by trying to explain howeach piece ofdata is born. This
+usually means describing aspects of the underlying reality as well as the sampling process. The data story in this case is simply a restatement of the sampling process:
+(1) The true proportion ofwater covering the globe is p.
+(2) A single toss of the globe has a probability p ofproducing a water (W) observation. 
+(3) Each toss of the globe is independent of the others. It has a probability 1 − p ofproducing a land (L) observation.
+
+The data story is then translated into a formal probability model. This probability model is easy to build, because the construction process can be usefully broken down into a series of component decisions. B
+
+#### Bayesian updating
+
+Our problem is one ofusing the evidence—the sequence ofglobe tosses—to decide among different possible proportions ofwater on the globe. These propor- tions are like the conjectured marbles inside the bag, from earlier in the chapter. Each possi- ble proportion may be more or less plausible, given the evidence. A Bayesian model begins with one set of plausibilities assigned to each of these possibilities. These are the prior plau- sibilities. Then it updates them in light of the data, to produce the posterior plausibilities. This updating process is a kind of learning, called Bayesian updating.
+
+##### A note on bayesian sample sizes
+
+Rethinking: Sample size and reliable inference. It is common to hear that there is a minimum num- ber of observations for a useful statistical estimate. For example, there is a widespread superstition that 30 observations are needed before one can use a Gaussian distribution Why? In non-Bayesian statistical inference, procedures are often justified by themethod’s behavior at very large sample sizes, so-called asymptotic behavior. As a result, performance at small samples sizes is questionable.
+
+In contrast, Bayesian estimates are valid for any sample size. This does not mean that more data
+isn’t helpful—it certainly is. Rather, the estimates have a clear and valid interpretation, no matter the
+the sample size. But the price for this power is dependency upon the initial plausibilities, the prior. If
+the prior is a bad one, then the resulting inference will be misleading. There’s no free lunch,44 when
+it comes to learning about the world. A Bayesian golem must choose an initial plausibility, and a
+the prior is a bad one, then the resulting inference will be misleading. There’s no free lunch,44 when it comes to learning about the world. A Bayesian golem must choose an initial plausibility, and a non-Bayesian golem must choose an estimator. Both golems pay for lunch with their assumptions.
+
+#### Evaluate
+
+The Bayesianmodel learns in a way that is demonstrably optimal, provided that it accurately describes the real, large world. This is to say that your Bayesian machine guarantees perfect inference within the small world. No other way of using the available
+information, beginning with the same state of information, could do better. 
+
+First, the model’s certainty is no guarantee that the model is a good one....But models of all sorts—Bayesian or not—can be very confident about an inference, even when themodel is seriously misleading. This is because the inferences are conditional on the model. What your model is telling you is that, given a commitment to this particular model, it can be very sure that the plausible values are in a narrow range. Under a different model, things might look differently.
+Second, it is important to supervise and critique your model’s work. Consider again the
+fact that the updating in the previous section works in any order of data arrival. We could shuffle the order of the observations, as long as six W’s and three L’s remain, and still end up with the same final plausibility curve. That is only true, however, because the model assumes that order is irrelevant to inference. When something is irrelevant to the machine, it won’t affect the inference directly. But it may affect it indirectly, because the data will depend upon order. So it is important to check the model’s inferences in light ofaspects of the data it does not know about. Such checks are an inherently creative enterprise, left to the analyst and the scientific community. Golems are very bad at it.
+
+We know the model’s assumptions are never exactly right, in the sense ofmatching the true data generating process. Therefore there’s no point in checking if the model is true. Failure to conclude that a model is false must be a failure of our imagination, not a success of the model. Moreover, models do not need to be exactly true in order to produce highly precise and useful inferences. All manner ofsmall world assumptions about error distributions and the like can be violated in the large world, but a model may still produce a perfectly useful estimate. This is because models are essentially information processing machines, and there are some surprising aspects of information that cannot be easily captured by framing the problem in terms of the truth of assumptions.
+
+Instead, the objective is to check the model’s adequacy for some purpose. This usually
+means asking and answering additional questions, beyond those that originally constructed the model. Both the questions and answers will depend upon the scientific context. So it’s hard to provide general advice. There will be many examples, throughout the book, and of course the scientific literature is replete with evaluations of the suitability of models for different jobs—prediction, comprehension, measurement, and persuasion.
+
+Rethinking:
+Deflationary statistics. It may be that Bayesian inference is the best general purpose method of inference known. However, Bayesian inference is much less powerful than we’d like it to be. There is no approach to inference that provides universal guarantees. No branch of applied mathematics has unfettered access to reality, because math is not discovered, like the proton. Instead it is invented, like the shovel.
+
+## 2.3 Components of the model
+
+In this section, you’ll meet these components in some detail and see how each relates to
+the counting you did earlier in the chapter. The job in front ofus is really nothing more than naming all of the variables and defining each. We’ll take these tasks in turn.
+
+### 2.3.1. Variables. 
+Variables are just symbols that can take on different values. In a scientific context, variables include things we wish to infer, such as proportions and rates, as well as things we might observe, the data. In the globe tossing model, there are three variables. 
+The first variable is our target of inference, p, the proportion ofwater on the globe. This
+variable cannot be observed. Unobserved variables are usually called **parameter** But while p itself is unobserved, we can infer it from the other variables.
+The other variables are the observed variables, the counts of water and land. Call the
+count of water Wand the count of land L. The sum of these two variables is the number of globe tosses: N= W+ L.
+
+### 2.3.2. Definitions.
+Once we have the variables listed, we then have to define each of them. In defining each, we build a model that relates the variables to one another. Remember, the goal is to count all the ways the data could arise, given the assumptions. This means, as in the globe tossing model, that for each possible value of the unobserved variables, such as p, we need to define the relative number of ways—the probability—that the values of each observed variable could arise. And then for each unobserved variable, we need to define the prior plausibility ofeach value it could take. I appreciate that this is all a bit abstract. So here are the specifics, for the globe.
+
+#### 2.3.2.1. Observed variables. 
+For the count of water Wand land L, we define how plau-
+sible any combination ofWand L would be, for a specific value of p. This is very much like the marble counting we did earlier in the chapter. Each specific value of p corresponds to a specific plausibility of the data
+
+So that we don’t have to literally count, we can use a mathematical function that tells
+us the right plausibility. In conventional statistics, a distribution function assigned to an observed variable is usually called a likelihood. That term has special meaning in non- Bayesian statistics, however.47 We will be able to do things with our distributions that non- Bayesian models forbid. So I will sometimes avoid the term likelihood and just talk about distributions of variables. But when someone says, “likelihood,” they will usually mean a distribution function assigned to an observed variable. In the case ofthe globe tossingmodel, the functionwe need can be derived directly from
+the data story. Begin by nominating all of the possible events. There are two: water (W) and land (L). There are no other events. The globe never gets stuck to the ceiling, for example. When we observe a sample of W’s and L’s of length N (nine in the actual sample), we need to say how likely that exact sample is, out of the universe of potential samples of the same length. That might sound challenging, but it’s the kind of thing you get good at very quickly, once you start practicing.
+
+In this case, once we add our assumptions that (1) every toss is independent of the other
+tosses and (2) the probability of W is the same on every toss, probability theory provides a unique answer, known as the binomial distribution. This is the common “coin tossing” distribution. And so the probability ofobservingWwaters and L lands, with a probability p ofwater on each toss, is:
+Pr(W, L|p) =
+(W+ L)! W!L!
+pW(1 − p)L Read the above as:
+The counts of“water”Wand “land’ L are distributed binomially, with prob- ability p of“water” on each toss.
+And the binomial distribution formula is built into R, so you can easily compute the likeli- hood of the data—six W’s in nine tosses—under any value of p with:
+
+```{r}
+# the relative number of ways to get six water holding p at 0.5 and N = W + L at nine - relative number of paths through the garden
+dbinom(6,size=9, prob=0.5)
+
+# What if we get 9 waters? How likely is that?
+dbinom(9, size=9, prob=0.5)
+# Very unlikely! 
+
+# What about if the proportion of water is actually zero
+dbinom(9, size=9, prob=0)
+# Well, shock, it's impossible to make such an observation!
+
+# well it's more likely to get 5 water from 10 samples than any other value, when the proportion of water is 0.50. Makes sense!
+dbinom(1, size=10, prob=0.5)
+dbinom(2, size=10, prob=0.5)
+dbinom(3, size=10, prob=0.5)
+dbinom(4, size=10, prob=0.5)
+dbinom(5, size=10, prob=0.5)
+dbinom(6, size=10, prob=0.5)
+dbinom(7, size=10, prob=0.5)
+dbinom(8, size=10, prob=0.5)
+dbinom(9, size=10, prob=0.5)
+
+# Presumably, when the sample size gets higher the different likelihoods get narrower? I will go up by a factor of ten
+dbinom(10, size=100, prob=0.5)
+dbinom(20, size=100, prob=0.5)
+dbinom(30, size=100, prob=0.5)
+dbinom(40, size=100, prob=0.5)
+dbinom(50, size=100, prob=0.5)
+dbinom(60, size=100, prob=0.5)
+dbinom(70, size=100, prob=0.5)
+dbinom(80, size=100, prob=0.5)
+dbinom(90, size=100, prob=0.5)
+# And overall, everything gets smaller, because you are asking for the likelihood of (e.g.) exactly 50.
+```
+That number is the relative number of ways to get six water, holding p at 0.5 and N= W+L at nine. So it does the job ofcounting relative number ofpaths through the garden. Change the 0.5 to any other value, to see how the value changes. 
+
+```{r}
+x <- seq(0,1,0.1)
+dbinom(6,size=9, prob=x)
+## maximum liklihood is approx 0.7 - in actual fact I think it should be around 0.67
+```
+Much later in the book, in Chapter 10, we’ll see that the binomial distribution is rather special, because it represents the maximum entropy way to count binary events. “Maxi- mum entropy” might sound like a bad thing. Isn’t entropy disorder? Doesn’t “maximum entropy” mean the death of the universe? Actually it means that the distribution contains no additional information other than: There are two events, and the probabilities of each  in each trial are p and 1 − p. Chapter 10 explains this in more detail, and the details can certainly wait.
+
+Overthinking: Names and probability distributions. The “d” in dbinom stands for density. Func- tions named in this way almost always have corresponding partners that begin with “r” for random samples and that begin with “p” for cumulative probabilities. See for example the help ?dbinom.
+
+#### 2.3.2.2. Unobserved variables. 
+The distributions we assign to the observed variables typ-
+ically have their own variables. In the binomial above, there is p, the probability of sampling water. Since p is not observed, we usually call it a parameter. Even though we cannot observe p, we still have to define it. 
+In future chapters, there will bemore parameters in yourmodels. In statistical modeling, many ofthemost common questions we ask about data are answered directly by parameters:
+• What is the average difference between treatment groups? 
+• How strong is the association between a treatment and an outcome?
+• Howmuch variation is there among groups? 
+• Does the effect of the treatment depend upon a covariate?
+
+You’ll see how these questions become extra parameters inside the distribution function we assign to the data. 
+
+For every parameter you intend your Bayesian machine to consider, you must provide a distribution of prior plausibility, its prior. A Bayesian machine must have an initial plausi- bility assignment for each possible value of the parameter, and these initial assignments do useful work. When you have a previous estimate to provide to the machine, that can become the prior, as in the steps in Figure 2.5. Back in Figure 2.5, the machine did its learning one piece ofdata at a time. As a result, each estimate becomes the prior for the next step. But this doesn’t resolve the problem of providing a prior, because at the dawn of time, when N = 0, the machine still had an initial state ofinformation for the parameter p: a flat line specifying equal plausibility for every possible value.
+
+So where do priors come from? They are both engineering assumptions, chosen to help the machine learn, and scientific assumptions, chosen to reflect what we know about a phe- nomenon. The flat prior in Figure 2.5 is very common, but it is hardly ever the best prior. Later chapters will focus on prior choice a lot more. 
+
+There is a school ofBayesian inference that emphasizes choosing priors based upon the personal beliefs ofthe analyst.48 While this subjective Bayesian approach thrives in some statistics and philosophy and economics programs, it is rare in the sciences. Within Bayesian data analysis in the natural and social sciences, the prior is considered to be just part of the model. As such it should be chosen, evaluated, and revised just like all of the other components of the model. In practice, the subjectivist and the non-subjectivist will often analyze data in nearly the same way. None of this should be understood to mean that any statistical analysis is not inherently subjective, because of course it is—lots of little subjective decisions are involved in all parts of science. It’s just that priors and Bayesian data analysis are no more inherently subjective than are likelihoods and the repeat sampling assumptions required for significance testing.49 Anyone who has visited a statistics help desk at a university has probably experienced this subjectivity—statisticians do not in general exactly agree on how to analyze anything but the simplest of problems. The fact that statistical inference uses mathematics does not imply that there is only one reasonable or useful way to conduct an analysis. Engineering uses math as well, but there are many ways to build a bridge. 
+
+Beyond all of the above, there’s no law mandating we use only one prior. If you don’t have a strong argument for any particular prior, then try different ones. Because the prior is an assumption, it should be interrogated like other assumptions: by altering it and checking how sensitive inference is to the assumption. No one is required to swear an oath to the assumptions of a model, and no set of assumptions deserves our obedience.
+
+### 2.3.3. A model is born. 
+With all the above work, we can now summarize our model. The observed variables Wand L are given relative counts through the binomial distribution. So we can write, as a shortcut:
+W∼ Binomial(N, p)
+where N = W+ L. The above is just a convention for communicating the assumption that the relative counts ofways to realizeWin Ntrials with probability p on each trial comes from the binomial distribution. And the unobserved parameter p similarly gets:
+p ∼ Uniform(0, 1)
+This means that p has a uniform—flat—prior over its entire possible range, from zero to one. As I mentioned earlier, this is obviously not the best we could do, since we know the Earth has more water than land, even ifwe do not know the exact proportion yet. Next, let’s see how to use these assumptions to generate inference.
+
+## 2.4. Making the model go
+
+### 2.4.1 Grid approximation 
+
+```{r}
+
+## define grid
+p_grid <- seq(from=0 , to=1 , length.out=20)
+## define prior
+prior <- rep(1 , 20)
+## compute likelihood at each value in grid
+likelihood <- dbinom(6 , size=9, prob=p_grid )
+## compute product of likelihood and prior
+unstd.posterior <- likelihood * prior
+## standardize the posterior, so it sums to 1
+posterior <- unstd.posterior / sum(unstd.posterior)
+
+cbind(unstd.posterior, posterior, posterior/unstd.posterior)
+```
+
+```{r}
+
+plot( p_grid , posterior , type="b" , xlab="probability of water" , ylab="posterior probability")
+mtext( "20 points" )
+```
+```{r}
+
+## define grid
+p_grid <- seq( from=0 , to=1 , length.out=100000 )
+## define prior
+prior <- rep( 1 , 100000 )
+## compute likelihood at each value in grid
+likelihood <- dbinom( 6 , size=9 , prob=p_grid )
+## compute product of likelihood and prior
+unstd.posterior <- likelihood * prior
+## standardize the posterior, so it sums to 1
+posterior <- unstd.posterior / sum(unstd.posterior)
+
+```
+
+```{r}
+
+plot( p_grid , posterior , type="b" , xlab="probability of water" , ylab="posterior probability")
+mtext( "100000 points" )
+```
+
+```{r}
+
+## define grid
+p_grid <- seq( from=0 , to=1 , length.out=5 )
+## define prior
+prior <- rep( 1 , 5 )
+## compute likelihood at each value in grid
+likelihood <- dbinom( 6 , size=9 , prob=p_grid )
+## compute product of likelihood and prior
+unstd.posterior <- likelihood * prior
+## standardize the posterior, so it sums to 1
+posterior <- unstd.posterior / sum(unstd.posterior)
+
+```
+
+```{r}
+
+plot( p_grid , posterior , type="b" , xlab="probability of water" , ylab="posterior probability")
+mtext( "5 points" )
+```
+
+
+```{r}
+
+## define grid
+p_grid <- seq( from=0 , to=1 , length.out=50 )
+## define prior
+prior <- rep( 1 , 50 )
+## compute likelihood at each value in grid
+likelihood <- dbinom( 6 , size=9 , prob=p_grid )
+## compute product of likelihood and prior
+unstd.posterior <- likelihood * prior
+## standardize the posterior, so it sums to 1
+posterior <- unstd.posterior / sum(unstd.posterior)
+
+```
+
+```{r}
+
+plot( p_grid , posterior , type="b" , xlab="probability of water" , ylab="posterior probability")
+mtext( "50 points" )
+```
+
+
+Changing the prior
+
+```{r}
+
+## define grid
+p_grid <- seq( from=0 , to=1 , length.out=50 )
+## define prior
+prior <- ifelse( p_grid < 0.5 , 0 , 1 )
+## compute likelihood at each value in grid
+likelihood <- dbinom( 6 , size=9 , prob=p_grid )
+## compute product of likelihood and prior
+unstd.posterior <- likelihood * prior
+## standardize the posterior, so it sums to 1
+posterior <- unstd.posterior / sum(unstd.posterior)
+
+```
+
+```{r}
+plot( p_grid , posterior , type="b" , xlab="probability of water" , ylab="posterior probability")
+mtext( "50 points" )
+```
+
+```{r}
+
+## define grid
+p_grid <- seq( from=0 , to=1 , length.out=50 )
+## define prior
+prior <- exp( -5*abs( p_grid - 0.5 ) )
+## compute likelihood at each value in grid
+likelihood <- dbinom( 6 , size=9 , prob=p_grid )
+## compute product of likelihood and prior
+unstd.posterior <- likelihood * prior
+## standardize the posterior, so it sums to 1
+posterior <- unstd.posterior / sum(unstd.posterior)
+
+```
+
+```{r}
+plot( p_grid , posterior , type="b" , xlab="probability of water" , ylab="posterior probability")
+mtext( "50 points" )
+```
+### Quadratic approximation
+
+
+```{r}
+
+globe.qa <- quap(
+  alist(
+    W ~ dbinom(W+L ,p) , ## binomial likelihood
+    p ~ dunif(0,1) ## uniform prior
+  ) ,
+  data=list(W=6,L=3) )
+## display summary of quadratic approximation
+precis(globe.qa)
+        
+```
+Assuming the posterior is Gaussian, it is maximized at 0.67, and its standard deviation is 0.16.
+
+#### Testing the approxiamtion
+
+```{r}
+
+## analytical calculation
+W <- 6
+L <- 3
+curve( dbeta( x , W+1 , L+1 ) , from=0 , to=1 )
+## quadratic approximation
+curve( dnorm( x , 0.67 , 0.16 ) , lty=2 , add=TRUE )
+
+```
+
+```{r}
+## analytical calculation
+W <- 6
+L <- 3
+curve( dbeta( x , W+1 , L+1 ) , from=0 , to=1 )
+## quadratic approximation
+curve( dnorm( x , 0.67 , 0.16 ) , lty=2 , add=TRUE )
+
+```
+
+### MCMC approximation
+
+
+#### How does an mcmc chain work?
+
+```{r}
+
+n_samples <- 1000 #try changing this to get a feel for the sampling power needed
+p <- rep( NA , n_samples )
+p[1] <- 0.5
+W <- 6
+L <- 3
+for ( i in 2:n_samples ) {
+p_new <- rnorm( 1 , p[i-1] , 0.1 )
+if ( p_new < 0 ) p_new <- abs( p_new )
+if ( p_new > 1 ) p_new <- 2 - p_new
+q0 <- dbinom( W , W+L , p[i-1] )
+q1 <- dbinom( W , W+L , p_new )
+p[i] <- ifelse( runif(1) < q1/q0 , p_new , p[i-1] )
+}
+
+summary(p)
+
+## The values in p are samples from the posterior distribution. To compare to the analytical posterior:
+dens( p , xlim=c(0,1) )
+curve( dbeta( x , W+1 , L+1 ) , lty=2 , add=TRUE )
+
+```
+
+## Homework
+
+### 2M1
+
+```{r}
+
+# 1) W, W, W
+
+grid_points <- 100
+## define grid
+p_grid <- seq(from=0, to=1 , length.out=grid_points)
+## set a flat prior
+prior <- rep(1 , grid_points)
+## compute likelihood at each value in grid, 3 Ws, from 3 samples
+likelihood <- dbinom(3 , size=3, prob=p_grid)
+## compute product of likelihood and prior
+unstd.posterior <- likelihood * prior
+## standardize the posterior, so it sums to 1
+posterior <- unstd.posterior / sum(unstd.posterior)
+
+plot( p_grid , posterior , type="b" , xlab="probability of water" , ylab="posterior probability")
+mtext(paste0(length(p_grid)," points"))
+
+```
+
+```{r}
+
+# 2) W, W, W, L
+
+grid_points <- 100
+## define grid
+p_grid <- seq(from=0, to=1 , length.out=grid_points)
+## set a flat prior
+prior <- rep(1 , grid_points)
+## compute likelihood at each value in grid, 3 out of 4 water
+likelihood <- dbinom(3 , size=4, prob=p_grid)
+## compute product of likelihood and prior
+unstd.posterior <- likelihood * prior
+## standardize the posterior, so it sums to 1
+posterior <- unstd.posterior / sum(unstd.posterior)
+
+plot( p_grid , posterior , type="b" , xlab="probability of water" , ylab="posterior probability")
+mtext(paste0(length(p_grid)," points"))
+
+```
+```{r}
+
+# 3) L, W, W, L, W, W, W,
+
+grid_points <- 100
+## define grid
+p_grid <- seq(from=0, to=1 , length.out=grid_points)
+## set a flat prior
+prior <- rep(1 , grid_points)
+## compute likelihood at each value in grid, 5 Ws, from 7 samples
+likelihood <- dbinom(5 , size=7, prob=p_grid)
+## compute product of likelihood and prior
+unstd.posterior <- likelihood * prior
+## standardize the posterior, so it sums to 1
+posterior <- unstd.posterior / sum(unstd.posterior)
+
+plot( p_grid , posterior , type="b" , xlab="probability of water" , ylab="posterior probability")
+mtext(paste0(length(p_grid)," points"))
+
+```
+### 2M2
+
+Priors for p that is equal to zero when p < 0.5 and is a positive constant when p ≥ 0.5.
+
+```{r}
+
+# 1) W, W, W
+
+grid_points <- 100
+## define grid
+p_grid <- seq(from=0, to=1 , length.out=grid_points)
+## set prior
+prior <- ifelse(p_grid < 0.5, 0, 1)
+
+## compute likelihood at each value in grid, 3 Ws, from 3 samples
+likelihood <- dbinom(3 , size=3, prob=p_grid)
+## compute product of likelihood and prior
+unstd.posterior <- likelihood * prior
+## standardize the posterior, so it sums to 1
+posterior <- unstd.posterior / sum(unstd.posterior)
+
+plot( p_grid , posterior , type="b" , xlab="probability of water" , ylab="posterior probability")
+mtext(paste0(length(p_grid)," points"))
+
+```
+
+```{r}
+
+# 2) W, W, W, L
+
+grid_points <- 100
+## define grid
+p_grid <- seq(from=0, to=1 , length.out=grid_points)
+## set prior
+prior <- ifelse(p_grid < 0.5, 0, 1)
+
+## compute likelihood at each value in grid, 3 out of 4 water
+likelihood <- dbinom(3 , size=4, prob=p_grid)
+## compute product of likelihood and prior
+unstd.posterior <- likelihood * prior
+## standardize the posterior, so it sums to 1
+posterior <- unstd.posterior / sum(unstd.posterior)
+
+plot( p_grid , posterior , type="b" , xlab="probability of water" , ylab="posterior probability")
+mtext(paste0(length(p_grid)," points"))
+
+```
+
+```{r}
+
+# 3) L, W, W, L, W, W, W,
+
+grid_points <- 100
+## define grid
+p_grid <- seq(from=0, to=1 , length.out=grid_points)
+## set prior
+prior <- ifelse(p_grid < 0.5, 0, 1)
+
+## compute likelihood at each value in grid, 5 Ws, from 7 samples
+likelihood <- dbinom(5 , size=7, prob=p_grid)
+## compute product of likelihood and prior
+unstd.posterior <- likelihood * prior
+## standardize the posterior, so it sums to 1
+posterior <- unstd.posterior / sum(unstd.posterior)
+
+plot( p_grid , posterior , type="b" , xlab="probability of water" , ylab="posterior probability")
+mtext(paste0(length(p_grid)," points"))
+
+```
+
+# Chapter 3
+
+Vampires
+
+```{r}
+
+# Lots of books on Bayesian statistics introduce posterior inference by using a medical testing scenario. To repeat the structure of common examples, suppose there is a blood test that correctly detects vampirism 95% of the time. In more precise and mathematical notation, Pr(positive test result|vampire) = 0.95. It’s a very accurate test, nearly always catching real vampires. It also make mistakes, though, in the form of false positives. One percent of the time, it incorrectly diagnoses normal people as vampires, Pr(positive test result|mortal) = 0.01. The final bit of information we are told is that vampires are rather rare, being only 0.1% of the population, implying Pr(vampire) = 0.001. Suppose now that someone tests positive for vampirism. What’s the probability that he or she is a bloodsucking immortal?
+
+(0.95*0.001)/((0.95*0.001)+(0.01*0.999))
+
+
+Pr_Positive_Vampire <- 0.95 
+Pr_Positive_Mortal <- 0.01 
+Pr_Vampire <- 0.001
+
+Pr_Positive <- Pr_Positive_Vampire * Pr_Vampire + 
+  Pr_Positive_Mortal * ( 1 - Pr_Vampire ) 
+( Pr_Vampire_Positive <- Pr_Positive_Vampire*Pr_Vampire / Pr_Positive )
+```
+
+
+
+# Sampling from a grid approximate posterior
+
+```{r}
+
+p_grid <- seq( from=0 , to=1 , length.out=1000 ) 
+prob_p <- rep( 1 , 1000 )
+prob_data <- dbinom( 6 , size=9 , prob=p_grid )
+posterior <- prob_data * prob_p
+posterior <- posterior / sum(posterior)
+
+plot( p_grid , posterior , type="b" , xlab="probability of water" , ylab="posterior probability")
+mtext(paste0(length(p_grid)," points"))
+
+# weight of sampling based on their probability
+samples <- sample( p_grid , prob=posterior , size=1e4 , replace=TRUE )
+
+summary(posterior)
+summary(samples)
+summary(p_grid)
+
+# plot(samples)
+dens(samples)
+
+
+# if we sample more
+samples <- sample( p_grid , prob=posterior , size=1e7 , replace=TRUE)
+
+summary(posterior)
+summary(samples)
+summary(p_grid)
+
+dens(samples)
+
+# weight of sampling based on their probability
+samples <- sample( p_grid , prob=posterior , size=1e4 , replace=TRUE )
+
+```
+
+All you’ve done so far is crudely replicate the posterior density you had already com-puted. That isn’t of much value. But next it is time to use these samples to describe and understand the posterior. That is of great value.
+
+## Sampling to summarize
+
+Interpretting the distribution depends on which type of question you want to ask:
+
+### Intervals of defined boundaries
+
+```{r}
+
+# add up posterior probability where p < 0.5 
+sum( posterior[ p_grid < .5 ] )
+
+```
+So about 17% of the posterior probability is below 0.5. Couldn’t be easier. But since grid ap- proximation isn’t practical in general, it won’t always be so easy. Once there is more than one parameter in the posterior distribution (wait until the next chapter for that complication), even this simple sum is no longer very simple. 
+
+
+let’s see how to perform the same calculation, using samples from the posterior. This approach does generalize to complex models with many parameters, and so you can use it everywhere. All you have to do is similarly add up all of the samples below 0.5, but also divide the resulting count by the total number ofsamples. In other words, find the frequency ofparameter values below 0.5:
+
+```{r}
+sum( samples < 0.5 ) / 1e4
+```
+Using the same approach, you can ask howmuch posterior probability lies between 0.5 and 0.75:
+```{r}
+sum( samples > 0.5 & samples < 0.75 ) / 1e4
+
+```
+## Sampling to simulate prediction
+
+Suppose N= 2, two tosses of the globe. Then there are only three possible observations: 0 water, 1 water, 2 water. You can quickly compute the probability of each, for any given value of p. Let’s use p = 0.7,
+which is just about the true proportion ofwater on the Earth:
+
+```{r}
+dbinom(0:2 , size=2 , prob=0.7 )
+```
+This means that there’s a 9% chance of observing w = 0, a 42% chance of w = 1, and a 49% chance of w = 2.
+
+```{r}
+dbinom(0:10, size=10, prob=0.9)
+```
+
+Now we are going to simulate observations, using these probabilities [kind of the reverse]
+
+```{r}
+# use the function rbinom
+rbinom( 1 , size=2, prob=0.7 )
+```
+[if answer is one] That 1 means “1 water in 2 tosses.” The “r” in rbinom stands for “random.” It can also generate more than one simulation at a time. A set of 10 simulations can be made by:
+
+
+```{r}
+rbinom(10, size=2,prob=0.7)
+#In English, if I do 2 tosses, and the probability of finding the selected answer (focal(?)) is 0.7, how many times (out of the two) do I find this answer. AND then do this 10 times. And all this according to a binomial distribution (there are only two options each time)
+```
+Let’s generate 100,000 dummy observations, just to verify that each value (0, 1, or 2) appears in proportion to its likelihood:
+
+```{r}
+dummy_w <- rbinom( 1e5 , size=2 , prob=0.7 ) 
+table(dummy_w)/1e5 #represent proportionally by dividing by the total number of samples
+
+```
+And those values are very close to the analytically calculated likelihoods further up. You will see slightly different values, due to simulation variance
+
+Only two tosses of the globe isn’t much of a sample, though. So now let’s simulate the same sample size as before, 9 tosses.
+
+```{r}
+
+dummy_w <- rbinom( 100 , size=9 , prob=0.7 ) 
+simplehist( dummy_w , xlab="dummy water count" )
+
+dummy_w <- rbinom( 1e5 , size=1000 , prob=0.7 ) 
+simplehist( dummy_w , xlab="dummy water count" )
+
+dummy_w <- rbinom( 1e5 , size=9 , prob=0.7 ) 
+simplehist( dummy_w , xlab="dummy water count" )
+
+dummy_w <- rbinom( 1e5 , size=9 , prob=0.1 ) 
+simplehist( dummy_w , xlab="dummy water count" )
+```
+From playing around with the parameters of the function, you can see that...
+- the width of the distribution (i.e. precision?) decreases as you increase the number of samples
+- all the rest is fairly obvious to me.
+
+```{r}
+dummy_w <- rbinom( 1e5 , size=9 , prob=0.7 ) 
+simplehist( dummy_w , xlab="dummy water count" )
+```
+
+Notice that most of the time the expected obser- vation does not contain water in its true proportion, 0.7. That’s the nature of observation: There is a one-to-many relationship between data and data-generating processes.
+
+### Model checking
+
+
+To simulate predicted observations for a single value of p, say p = 0.6, you can use rbinom to generate random binomial samples:
+So how do you actually do the calculations? 
+```{r}
+w <- rbinom( 1e4 , size=9 , prob=0.6 )
+simplehist(w)
+```
+
+All you need to propagate parameter uncertainty into these predictions is replace the value 0.6 with samples from the posterior:
+```{r}
+w <- rbinom( 1e4 , size=9 , prob=samples )
+simplehist(w)
+```
+
+The symbol samples above is the same list of random samples from the posterior distribu- tion that you’ve used in previous sections. For each sampled value, a randombinomial obser- vation is generated. Since the sampled values appear in proportion to their posterior proba- bilities, the resulting simulated observations are averaged over the posterior. You canmanip- ulate these simulated observations just like youmanipulate samples from the posterior—you can compute intervals and point statistics using the same procedures.
+
+The simulated model predictions are quite consistent with the observed data in this
+case—the actual count of 6 lies right in the middle of the simulated distribution. There is quite a lot of spread to the predictions, but a lot of this spread arises from the binomial pro- cess itself, not uncertainty about p.
+
+## Practise with brms
+
+Because I like brms, I am supplementing this with A Soloman Kurtz's love letter to rethinking, brms, and tidyverse available at: https://bookdown.org/ajkurz/Statistical_Rethinking_recoded/index.html
+
+```{r}
+library(brms)
+library(tidyverse)
+```
+
+```{r}
+b3.1 <-
+  brm(data = list(w = 6), 
+      family = binomial(link = "identity"),
+      w | trials(9) ~ 1,
+      # this is a flat prior
+      prior(beta(1, 1), class = Intercept),
+      seed = 3,
+      control = list(adapt_delta = .999))
+#  We’ll learn more about the beta distribution in Chapter 11. But for now, here’s the posterior summary for b_Intercept, the probability of a “w”.
+
+posterior_summary(b3.1)["b_Intercept", ] %>% 
+  round(digits = 2)
+##  Estimate Est.Error      Q2.5     Q97.5 
+##      0.64      0.14      0.36      0.88
+```
+
+
+As we’ll fully cover in the next chapter, Estimate is the posterior mean, the two Q columns are the quantile-based 95% intervals, and Est.Error is the posterior standard deviation.
+
+Much like the way we used the samples() function to simulate probability values, above, we can do so with fitted() within the brms framework. But we will have to specify scale = "linear" in order to return results in the probability metric. By default, brms::fitted() will return summary information. Since we want actual simulation draws, we’ll specify summary = F.
+
+```{r}
+f <-
+  fitted(b3.1, summary = F,
+         scale = "linear") %>% 
+  as_tibble() %>% 
+  set_names("p")
+
+glimpse(f)
+## Observations: 4,000
+## Variables: 1
+## $ p <dbl> 0.6920484, 0.5559454, 0.6096088, 0.5305334, 0.4819733, 0.6724561, 0.6402367, 0.8356569,…
+```
+
+
+```{r}
+# By default, we have a generically-named vector V1 of 4000 samples. We’ll explain the defaults in later chapters. For now, notice we can view these in a density.
+
+f %>% 
+  ggplot(aes(x = p)) +
+  geom_density(fill = "grey50", color = "grey50") +
+  annotate(geom = "text", 
+           x = .08, y = 2.5,
+           label = "Posterior probability") +
+  scale_x_continuous("probability of water",
+                     breaks = c(0, .5, 1),
+                     limits = 0:1) +
+  scale_y_continuous(NULL, breaks = NULL) +
+  theme(panel.grid = element_blank())
+```
+
+
+Looks a lot like the posterior probability density at the top of Figure 3.6, doesn’t it? Much like we did with samples, we can use this distribution of probabilities to predict histograms of w counts. With those in hand, we can make an analogue to the histogram in the bottom panel of Figure 3.6.
+
+```{r}
+
+# how many grid points would you like?
+n <- 1001
+n_success <- 6
+n_trials  <- 9
+
+# the simulation
+set.seed(3)
+
+f <-
+  f %>% 
+  mutate(w = rbinom(n(), size = n_trials,  prob = p))
+
+# the plot
+f %>% 
+  ggplot(aes(x = w)) +
+  geom_histogram(binwidth = 1, center = 0,
+                 color = "grey92", size = 1/10) +
+  scale_x_continuous("number of water samples",
+                     breaks = seq(from = 0, to = 9, by = 3), limits = c(0, 9)) +
+  scale_y_continuous(NULL, breaks = NULL, limits = c(0, 1200)) +
+  ggtitle("Posterior predictive distribution") +
+  theme(panel.grid = element_blank())
+
+```
+
+## Homework
+
+### Easy 
+
+```{r}
+
+p_grid <- seq( from=0 , to=1 , length.out=1000)
+prior <- rep( 1 , 1000 ) 
+likelihood <- dbinom( 6 , size=9 , prob=p_grid )
+posterior <- likelihood * prior
+posterior <- posterior / sum(posterior)
+
+set.seed(100) 
+samples <- sample( p_grid , prob=posterior , size=1e4 , replace=TRUE )
+
+```
+
+```{r}
+
+sum(samples < 0.2)/1e4
+
+sum(samples > 0.8)/1e4
+
+sum(samples > 0.2 & samples < 0.8)/1e4
+
+```
+
+
+```{r}
+
+quantile( samples , .2)
+
+quantile( samples , .8)
+
+```
+
+```{r}
+
+# 3E6. Which values of p contain the narrowest interval equal to 66% of the posterior probability?
+HPDI(samples, 0.66)
+```
+```{r}
+
+PI(samples, p=.66)
+# 
+PI(samples, p=.01)
+
+PI(samples, p=1)
+
+```
+### Medium
+
+# Sampling from a grid approximate posterior
+
+```{r}
+p_grid <- seq( from=0 , to=1 , length.out=1000 ) 
+prob_p <- rep( 1 , 1000 )
+prob_data <- dbinom( 8 , size=15 , prob=p_grid )
+posterior <- prob_data * prob_p
+posterior <- posterior / sum(posterior)
+
+plot( p_grid , posterior , type="b" , xlab="probability of water" , ylab="posterior probability")
+mtext(paste0(length(p_grid)," points"))
+```
+
+
+```{r}
+# weight of sampling based on their probability
+samples <- sample( p_grid , prob=posterior , size=1e4 , replace=TRUE )
+
+summary(posterior)
+summary(samples)
+summary(p_grid)
+
+# plot(samples)
+dens(samples)
+```
+
+```{r}
+
+HPDI(samples, prob = .9)
+
+```
+
+```{r}
+w <- rbinom( 1e4 , size=15 , prob=samples)
+simplehist(w)
+
+# What is the probability of observing 8 water in 15 tosses?
+sum(w ==8)/1e4
+
+```
+
+```{r}
+
+sessionInfo()
+
+```
+
